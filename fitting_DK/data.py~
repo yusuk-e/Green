@@ -1,0 +1,196 @@
+import pdb
+import numpy as np
+from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import seaborn as sns
+from t_io import standard_vis as std_vis
+
+DPI = 100
+seed = 0
+alpha = 1.
+beta = np.array([np.sqrt(.5), np.sqrt(.3)])
+dim = 2
+L = [10,20,50,100,200,500,1000,2000,3000,5000,10000,20000]
+F = .5 #friction coefficient
+#sns.set(font_scale=1.5)
+RMSEs = []
+
+
+def RMSE(K1,K2):
+    K1_max = K1.max()
+    return np.sqrt(((K1/K1_max - K2/K1_max)**2).sum()/K1.size)
+
+def vis(filename, a, b, ys):
+    fig = plt.figure(figsize=(4,3), facecolor='white', dpi=DPI)
+    ax = fig.subplots()
+    ax.set_aspect('equal', adjustable='box')
+    cp = plt.contourf(a, b, ys, cmap='YlOrRd', alpha=1., levels=200)
+    fig.colorbar(cp, format='%.2f')
+    plt.tight_layout()
+    fig.savefig(filename)
+    plt.close()
+
+def generate_w_1d(l):
+    np.random.seed(seed=seed)
+    w = np.random.normal(0, 1, size=l)
+    return w
+
+def vis_gram(filename, data):
+    fig, ax = plt.subplots(figsize=(10,10))
+    ax.set_aspect('equal', adjustable='box')
+    sns.heatmap(data, vmin=-3.5, vmax=3.5, cbar_kws={"shrink": .81},cmap='vlag')
+    plt.savefig(filename, format='pdf', dpi=DPI, bbox_inches='tight',pad_inches = 0.2)
+    plt.close()
+    
+
+if __name__ == "__main__":
+    '''
+    gridsize = 50
+    #xmin = -3.2; xmax = 3.2; ymin = -3.2; ymax = 3.2
+    xmin = -2; xmax = 2; ymin = -2; ymax = 2
+    b, a = np.meshgrid(np.linspace(xmin, xmax, gridsize), np.linspace(ymin, ymax, gridsize))
+    xs = np.stack([b.flatten(), a.flatten()])
+
+    #ARD---
+    ARD = alpha**2 * np.exp( - ((xs.T - 0.)**2 / (2. * beta**2)).sum(1) )
+    ys = ARD.reshape([a.shape[0],a.shape[1]])
+    filename = 'ARD.pdf'
+    vis(filename, a, b, ys)
+
+    #ARD RFF---
+    for l in L:
+        s = (1 / np.sqrt(4*np.pi**2 * beta**2)) * np.random.normal(0, 1, size=(l, dim))
+        K = alpha**2/l * np.cos((2*np.pi* s @ xs)).sum(0)
+        ys = K.reshape([a.shape[0],a.shape[1]])
+        filename = 'RFF_ARD_l' + str(l) + '.pdf'
+        vis(filename, a, b, ys)
+    '''
+    
+    #gram matrix-------------
+    gridsize = 10
+    xmin = -1; xmax = 1; ymin = -1; ymax = 1
+    b, a = np.meshgrid(np.linspace(xmin, xmax, gridsize), np.linspace(ymin, ymax, gridsize))
+    xs = np.stack([b.flatten(), a.flatten()])
+    input_dim, N = xs.shape
+
+    '''
+    #ARD gram---
+    tmp = xs.T / beta
+    ARD = alpha**2 * np.exp(-cdist(tmp, tmp)**2 / 2.)
+    filename = 'ARD_gram.pdf'
+    vis_gram(filename, ARD)
+
+    #ARD RFF gram---
+    for l in L:
+        s = (1 / np.sqrt(4*np.pi**2 * beta**2)) * np.random.normal(0, 1, size=(l, dim))
+        XS1 = np.kron(xs.T, np.array([[1]]*N))
+        XS2 = np.tile(xs.T, (N,1))
+        K = (alpha**2/l * (np.cos(2*np.pi * (s @ (XS1).T)) * np.cos(2*np.pi * (s @ (XS2).T))
+                           + np.sin(2*np.pi * (s @ (XS1).T)) * np.sin(2*np.pi * (s @ (XS2).T))).sum(0)
+             ).reshape([N,N])
+        #K = alpha**2/l * ( np.cos(2*np.pi * (s @ (XS1-XS2).T)).sum(0) ).reshape([N,N])
+        filename = 'ARD_RFF_gram_l' + str(l) + '.pdf'
+        vis_gram(filename, K)
+    '''
+    
+    #Vector ARD gram---
+    tmp = xs.T / beta
+    ARD = alpha**2 * np.exp(-cdist(tmp, tmp)**2 / 2.)
+    o_dependency = np.array([[2,0.5],[0.5,1]])
+    ARD_exact = np.kron(o_dependency,ARD)
+    filename = 'V_ARD_gram.pdf'
+    vis_gram(filename, ARD_exact)
+
+    #SGK gram---
+    b_q, b_p = beta
+    Dq = (np.tile(xs[0,:],(N,1)) - np.tile(xs[0,:],(N,1)).T)**2
+    Dp = (np.tile(xs[1,:],(N,1)) - np.tile(xs[1,:],(N,1)).T)**2
+    A = (1-Dq/b_q**2)/(b_q**2)*ARD
+    B = -( (np.tile(xs[0,:],(N,1)) - np.tile(xs[0,:],(N,1)).T)
+           * (np.tile(xs[1,:],(N,1))- np.tile(xs[1,:],(N,1)).T)
+          )/(b_q**2*b_p**2)*ARD
+    C = B
+    D = (1-Dp/b_p**2)/(b_p**2)*ARD
+    SGK_exact = np.concatenate([np.concatenate([D,-B], axis=1),np.concatenate([-C,A], axis=1)])
+    filename = 'SGK_gram.pdf'
+    vis_gram(filename, SGK_exact)
+
+    #SGK + friction gram---
+    b_q, b_p = beta
+    Dq = (np.tile(xs[0,:],(N,1)) - np.tile(xs[0,:],(N,1)).T)**2
+    Dp = (np.tile(xs[1,:],(N,1)) - np.tile(xs[1,:],(N,1)).T)**2
+    A = (1-Dq/b_q**2)/(b_q**2)*ARD
+    B = -( (np.tile(xs[0,:],(N,1)) - np.tile(xs[0,:],(N,1)).T)
+           * (np.tile(xs[1,:],(N,1))- np.tile(xs[1,:],(N,1)).T)
+          )/(b_q**2*b_p**2)*ARD
+    C = B
+    D = (1-Dp/b_p**2)/(b_p**2)*ARD
+    #A:(qq), B,C:(qp), D:(pp)
+    SGK_f_exact = np.concatenate([np.concatenate([D,-B-F*D], axis=1),np.concatenate([-C-F*D, A+2*F*B+F**2*D ], axis=1)])
+    filename = 'SGK_friction_gram.pdf'
+    vis_gram(filename, SGK_f_exact)
+
+    #RFF gram---
+    ARD_line = []
+    SGK_line = []
+    SGK_f_line = []
+    XS1 = np.kron(xs.T, np.array([[1]]*N))
+    XS2 = np.tile(xs.T, (N,1))
+    for l in L:
+        s = (1 / np.sqrt(4*np.pi**2 * beta**2)) * np.random.normal(0, 1, size=(l, dim))
+
+        #ARD RFF
+        K = alpha**2/l * ( np.cos(2*np.pi * (s @ (XS1-XS2).T)).sum(0) ).reshape([N,N])
+        K = np.kron(o_dependency,K)
+        filename = 'V_ARD_RFF_gram_l' + str(l) + '.pdf'
+        vis_gram(filename, K)
+        err = RMSE(ARD_exact, K)
+        ARD_line.append(err)
+
+        #SGK RFF
+        J = np.array([[0,1],[-1,0]])
+        tmp = ((J@s.T).T).reshape([l,2,1]) @ ((J@s.T).T).reshape([l,1,2])
+        tmp2 = np.cos(2*np.pi * (s @ (XS1-XS2).T))
+        for i in range(l):
+            A = np.kron(tmp2[0],tmp[0]) if i == 0 else A + np.kron(tmp2[i],tmp[i])
+        K = (2*np.pi)**2 * alpha**2 / l * A
+        ids=np.array([2*i for i in range(N*N)])
+        A = K[0,ids].reshape([N,N])
+        B = K[0,ids+1].reshape([N,N])
+        C = K[1,ids].reshape([N,N])
+        D = K[1,ids+1].reshape([N,N])
+        K = np.concatenate([np.concatenate([A,B], axis=1),np.concatenate([C,D], axis=1)])
+        filename = 'SGK_RFF_gram_l' + str(l) + '.pdf'
+        vis_gram(filename, K)
+        err = RMSE(SGK_exact, K)
+        SGK_line.append(err)
+
+        #SGK f RFF
+        J = np.array([[0,1],[-1,0]]) - np.array([[0,0],[0,F]])
+        tmp = ((J@s.T).T).reshape([l,2,1]) @ ((J@s.T).T).reshape([l,1,2])
+        tmp2 = np.cos(2*np.pi * (s @ (XS1-XS2).T))
+        for i in range(l):
+            A = np.kron(tmp2[0],tmp[0]) if i == 0 else A + np.kron(tmp2[i],tmp[i])
+        K = (2*np.pi)**2 * alpha**2 / l * A
+        ids=np.array([2*i for i in range(N*N)])
+        A = K[0,ids].reshape([N,N])
+        B = K[0,ids+1].reshape([N,N])
+        C = K[1,ids].reshape([N,N])
+        D = K[1,ids+1].reshape([N,N])
+        K = np.concatenate([np.concatenate([A,B], axis=1),np.concatenate([C,D], axis=1)])
+        filename = 'SGK_friction_RFF_gram_l' + str(l) + '.pdf'
+        vis_gram(filename, K)
+        err = RMSE(SGK_f_exact, K)
+        SGK_f_line.append(err)
+        
+    RMSEs.append(ARD_line)
+    RMSEs.append(SGK_line)
+    RMSEs.append(SGK_f_line)
+
+    filename = 'RMSE.pdf'
+    x = np.array(L); y = np.array(RMSEs)
+    xlabel = 'L'; ylabel = 'RMSE'; legend = ['ARD','w/o friction','w/ friction']
+    std_vis.plot(filename, x, y, xlabel, ylabel, legend)
+    pdb.set_trace()
+    

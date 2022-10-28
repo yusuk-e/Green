@@ -1,0 +1,1 @@
+{"system": "System1", "hidden_dim": 200, "output_dim": 1, "learn_rate": 0.001, "nonlinearity": "relu", "total_steps": 10000, "print_every": 1000, "seed": 0}

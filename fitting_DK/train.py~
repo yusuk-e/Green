@@ -1,0 +1,58 @@
+import pdb
+import numpy as np
+from scipy.spatial.distance import cdist
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import seaborn as sns
+from t_io import standard_vis as std_vis
+
+DPI = 100
+seed = 0
+xmin = 0; xmax = 1#; ymin = -1; ymax = 1
+gridsize = 20
+
+
+def vis_gram(filename, data):
+    fig, ax = plt.subplots(figsize=(10,10))
+    ax.set_aspect('equal', adjustable='box')
+    #sns.heatmap(data, vmin=-3.5, vmax=3.5, cbar_kws={"shrink": .81},cmap='vlag')
+    sns.heatmap(data, cbar_kws={"shrink": .81},cmap='vlag')
+    plt.savefig(filename, format='pdf', dpi=DPI, bbox_inches='tight',pad_inches = 0.2)
+    plt.close()
+    
+
+if __name__ == "__main__":
+
+    xs = np.linspace(xmin, xmax, gridsize)
+    N = xs.size
+    
+    #gram matrix 1-------------
+    L = xmax
+    K = []
+    for x0 in xs:
+        ks = []
+        for x1 in xs:
+            if x0 < x1:
+                k = x0*(L-x1)/L
+            else:
+                k = x1*(L-x0)/L
+            ks.append(k)
+        K.append(ks)
+
+    #vis kernel----------------
+    for i in range(N):
+        filename = 'kernel_' + str(i) + '.pdf'
+        plt.plot(xs,K[i])
+        plt.savefig(filename, format='pdf')
+        plt.close()
+
+    #vis gram matrix-----------
+    filename = 'gram_1.pdf'
+    vis_gram(filename, K)
+
+    #save
+    filename = 'gram_1.npy'
+    np.save(filename, K)
+    
+    pdb.set_trace()
+    
